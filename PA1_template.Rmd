@@ -1,0 +1,92 @@
+---
+title: "Reproducible research"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Download, unzip, and read data
+
+```{r}
+fileUrl <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+dest <- "activity.zip"
+download.file(fileUrl, destfile=dest, mode='wb')
+unzip(dest)
+activity <- read.csv("activity.csv")
+```
+
+## Histogram of the total number of steps taken each day
+```{r}
+library(dplyr)
+library(ggplot2)
+Nsteps <- activity %>%
+  filter(!is.na(steps)) %>%
+  group_by(date) %>%
+  summarize(steps = sum(steps)) 
+g <- ggplot(Nsteps, aes(x=steps)) + geom_histogram(binwidth=500) + xlab("Steps") + ylab("Count") + ggtitle("Total number of steps taken per day")
+g
+```
+
+## Mean and median number of steps taken each day
+```{r}
+meanstep <- mean(Nsteps$steps, na.rm=TRUE)
+medianstep <- median(Nsteps$steps, na.rm=TRUE)
+print("Mean number of steps taken each day : ")
+meanstep
+print("Median number of steps taken each day : ")
+medianstep
+```
+
+## Time series plot of the average number of steps taken
+```{r}
+Msteps <- activity %>%
+  filter(!is.na(steps)) %>%
+  group_by(interval) %>%
+  summarize(steps = mean(steps))
+with(Msteps, plot(interval, steps, type='l', xlab="Interval", ylab="Steps", main="Average number of steps taken"))
+```
+
+## 5-minute interval that, on average, contains the maximum number of steps
+```{r}
+maxinterval <- Msteps[which.max(Msteps$steps),1]
+maxinterval
+```
+
+## Impute missing data
+### Total number of missing values in the dataset
+```{r}
+sum(is.na(activity$steps))
+```
+### Strategy for filling in all of the missing values in the dataset
+### I will try to substitute all the NA's with the mean value for the corresponding intervals
+
+## Create a new dataset that is equal to the original dataset but with the missing data filled in.
+```{r}
+activity.na.rm <- activity
+na <- is.na(activity.na.rm$steps)
+avgint <- tapply(activity.na.rm$steps, activity.na.rm$interval, mean, na.rm=TRUE)
+activity.na.rm$steps[na] <- avgint[as.character(activity.na.rm$interval[na])]
+```
+
+##Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day.
+```{r}
+nomissing <- activity.na.rm %>%
+  group_by(date) %>%
+  summarize(steps = sum(steps))
+
+ggplot(nomissing, aes(x=steps)) + geom_histogram(binwidth=500)
+meanstep <- mean(nomissing$steps)
+medianstep <- median(nomissing$steps)
+```
+
+
+##Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+```{r}
+library(lattice)
+weekdays <- c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")
+activity.na.rm$day <- as.factor(ifelse(weekdays(as.Date(activity.na.rm$date)) %in% weekdays, "Weekday", "Weekend"))
+steps_day <- aggregate(steps~interval+day, activity.na.rm, mean)
+with(steps_day, xyplot(steps~interval|day, type="l", main="Average steps per day (weekday vs weekend)"))
+```
